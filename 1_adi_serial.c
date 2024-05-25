@@ -55,14 +55,14 @@ int main()
             }
         }
     }
-    //
-    // for (j = 0; j < N; j++) {
-    //     for (i = 0; i < N; i++) {
-    //         for (k = 1; k < N; k++) {
-    //             A[k][j][i] = A[k][j][i] * 0.6 - A[k-1][j][i] * 0.4;
-    //         }
-    //     }
-    // }
+
+    for (j = 0; j < N; j++) {
+        for (i = 0; i < N; i++) {
+            for (k = 1; k < N; k++) {
+                A[k][j][i] = A[k][j][i] * 0.6 - A[k-1][j][i] * 0.4;
+            }
+        }
+    }
 #pragma endscop
 
     print_array();
