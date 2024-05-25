@@ -47,14 +47,14 @@ int main()
             }
         }
     }
-    print_array();
-    // for (k = 0; k < N; k++) {
-    //     for (i = 0; i < N; i++) {
-    //         for (j = 1; j < N; j++) {
-    //             A[k][j][i] = A[k][j][i] * 0.5 - A[k][j-1][i] * 0.5;
-    //         }
-    //     }
-    // }
+
+    for (k = 0; k < N; k++) {
+        for (i = 0; i < N; i++) {
+            for (j = 1; j < N; j++) {
+                A[k][j][i] = A[k][j][i] * 0.5 - A[k][j-1][i] * 0.5;
+            }
+        }
+    }
     //
     // for (j = 0; j < N; j++) {
     //     for (i = 0; i < N; i++) {
@@ -65,7 +65,7 @@ int main()
     // }
 #pragma endscop
 
-    // print_array();
+    print_array();
 
     return 0;
 }

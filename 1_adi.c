@@ -89,10 +89,61 @@ void set_index_for_array(int *start_k_0, int *end_k_0, int *start_i_0, int *end_
             *start_j_1 = N/2;
             *end_j_1 = N;
         }
+    } else if (dependent_axis=='j') {
+        if (rank == 0) {
+            *start_k_0 = N/2;
+            *end_k_0 = N;
+            *start_i_0 = N/2;
+            *end_i_0 = N;
+            *start_j_0 = 0;
+            *end_j_0 = N/2;
+            *start_k_1 = 0;
+            *end_k_1 = N/2;
+            *start_i_1 = 0;
+            *end_i_1 = N/2;
+            *start_j_1 = N/2;
+            *end_j_1 = N;
+        } else if (rank == 1){
+            *start_k_0 = 0;
+            *end_k_0 = N/2;
+            *start_i_0 = 0;
+            *end_i_0 = N/2;
+            *start_j_0 = 0;
+            *end_j_0 = N/2;
+            *start_k_1 = N/2;
+            *end_k_1 = N;
+            *start_i_1 = N/2;
+            *end_i_1 = N;
+            *start_j_1 = N/2;
+            *end_j_1 = N;
+        } else if (rank == 2){
+            *start_k_0 = 0;
+            *end_k_0 = N/2;
+            *start_i_0 = N/2;
+            *end_i_0 = N;
+            *start_j_0 = 0;
+            *end_j_0 = N/2;
+            *start_k_1 = N/2;
+            *end_k_1 = N;
+            *start_i_1 = 0;
+            *end_i_1 = N/2;
+            *start_j_1 = N/2;
+            *end_j_1 = N;
+        } else if (rank == 3){
+            *start_k_0 = N/2;
+            *end_k_0 = N;
+            *start_i_0 = 0;
+            *end_i_0 = N/2;
+            *start_j_0 = 0;
+            *end_j_0 = N/2;
+            *start_k_1 = 0;
+            *end_k_1 = N/2;
+            *start_i_1 = N/2;
+            *end_i_1 = N;
+            *start_j_1 = N/2;
+            *end_j_1 = N;
+        }
     }
-    // } else if (dependent_axis=='j') {
-    //     if (rank == 0) 
-    // }
 }
 
 void set_partner_rank(int *partner_rank, int rank, char dependent_axis){
@@ -138,6 +189,14 @@ void set_sizes_for_transmission(int *starts, int *subsizes, char dependent_axis,
         subsizes[2] = 1;
         subsizes[1] = N/2;
         subsizes[0] = N/2;
+    } else if (dependent_axis=='j'){
+        starts[0] = (rank==0||rank==3) ? N/2 : 0;
+        starts[1] = N/2-1;
+        starts[2] = rank%2==0 ? N/2 : 0;
+        
+        subsizes[0] = N/2;
+        subsizes[1] = 1;
+        subsizes[2] = N/2;
     }
 }
 
@@ -169,29 +228,35 @@ void store_subarray_in_1D(double A[N][N][N], int starts[3], int subsizes[3], dou
     }
 }
 
-// void compute (int start_k, int end_k, int start_i, int end_i, int start_j, int end_j, double *boundary_buffer, char dependent_axis) {
+// void compute_first_part (int start_k, int end_k, int start_i, int end_i, int start_j, int end_j, double *boundary_buffer, char dependent_axis) {
 //     int i, j, k;
+//     if (dependent_axis=='i'){
 //         for (k = start_k; k < end_k; k++) {
 //             for (j = start_j; j < end_j; j++) {
-//                 for (i = start_i + 1; i < end_i; i++) {
-//                     A[k][j][i] = A[k][j][i] * 0.4 - A[k][j][i-1] * 0.6;
-//                 }
-//             }
-//         }
-//         for (k = start_k; k < end_k; k++) {
-//             for (j = start_j; j < end_j; j++) {
-//                 A[k][j][start_i] = A[k][j][start_i] * 0.4 - boundary_buffer[index_plane(k, j)];
+//                 if (boundary_buffer)
+//                     A[k][j][start_i] = A[k][j][start_i] * 0.4 - boundary_buffer[index_plane(k, j)];
 //                 for (i = start_i + 1; i < end_i; i++) {
 //                     A[k][j][i] = A[k][j][i] * 0.4 - A[k][j][i-1] * 0.6;
 //                 }
 //             }
 //         }       
+//     } else if (dependent_axis=='j') {
+//         
+//     }
 // }
+
 int start_k_0, end_k_0, start_i_0, end_i_0, start_j_0, end_j_0;
 int start_k_1, end_k_1, start_i_1, end_i_1, start_j_1, end_j_1;
+
 int main(int argc, char **argv)
 {
     int i, j, k;
+    int partner_rank;
+
+    double *send_buffer = malloc((N/2) * (N/2) * sizeof(double));
+    double *recv_buffer = malloc((N/2) * (N/2) * sizeof(double));
+
+    int starts[3], subsizes[3], bigsizes[3] = {N, N, N};
 
     init_array();
     
@@ -209,8 +274,6 @@ int main(int argc, char **argv)
 
     set_index_for_array(&start_k_0, &end_k_0, &start_i_0, &end_i_0, &start_j_0, &end_j_0, &start_k_1, &end_k_1, &start_i_1, &end_i_1, &start_j_1, &end_j_1, rank, 'i');
 
-#pragma scop
-    // i-dependent loop
     for (k = start_k_0; k < end_k_0; k++) {
         for (j = start_j_0; j < end_j_0; j++) {
             for (i = start_i_0 + 1; i < end_i_0; i++) {
@@ -220,14 +283,9 @@ int main(int argc, char **argv)
     }
 
     /* Transfer */
-    int partner_rank;
     set_partner_rank(&partner_rank, rank, 'i');         
 
-    double *send_buffer = malloc((N/2) * (N/2) * sizeof(double));
-    double *recv_buffer = malloc((N/2) * (N/2) * sizeof(double));
-
-    MPI_Datatype subarray;
-    int starts[3], subsizes[3], bigsizes[3] = {N, N, N};
+    // MPI_Datatype subarray;
     set_sizes_for_transmission(starts, subsizes, 'i', rank);
     store_subarray_in_1D(A, starts, subsizes, send_buffer);
 
@@ -239,16 +297,8 @@ int main(int argc, char **argv)
     MPI_Isend(send_buffer, (N/2) * (N/2), MPI_DOUBLE, partner_rank, 0, MPI_COMM_WORLD, &send_req);
     MPI_Irecv(recv_buffer, (N/2) * (N/2), MPI_DOUBLE, partner_rank, 0, MPI_COMM_WORLD, &recv_req);
     MPI_Wait(&recv_req, &recv_status);
-    // show recv_buffer
-    if (rank==0){
-        for (int i = 0; i < N/2; i++) {
-            for (int j = 0; j < N/2; j++) {
-                printf("%.2f ", recv_buffer[index_plane(i, j)]);
-            }
-            printf("\n");
-        }
-    }
     /* Done Transfer*/
+
     for (k = start_k_1; k < end_k_1; k++) {
         for (j = start_j_1; j < end_j_1; j++) {
             A[k][j][start_i_1] = A[k][j][start_i_1] * 0.4 - recv_buffer[index_plane(k-start_k_1, j-start_j_1)] * 0.6;
@@ -258,21 +308,34 @@ int main(int argc, char **argv)
         }
     }
 
-    // for (k = 0; k < N; k++) {
-    //     for (j = 0; j < N; j++) {
-    //         for (i = 1; i < N; i++) {
-    //             A[k][j][i] = A[k][j][i] * 0.4 - A[k][j][i-1] * 0.6;
-    //         }
-    //     }
-    // }
+    set_index_for_array(&start_k_0, &end_k_0, &start_i_0, &end_i_0, &start_j_0, &end_j_0, &start_k_1, &end_k_1, &start_i_1, &end_i_1, &start_j_1, &end_j_1, rank, 'j');
 
-    // for (k = 0; k < N; k++) {
-    //     for (i = 0; i < N; i++) {
-    //         for (j = 1; j < N; j++) {
-    //             A[k][j][i] = A[k][j][i] * 0.5 - A[k][j-1][i] * 0.5;
-    //         }
-    //     }
-    // }
+    for (k = start_k_0; k < end_k_0; k++) {
+        for (i = start_i_0; i < end_i_0; i++) {
+            for (j = start_j_0+1; j < end_j_0; j++) {
+                A[k][j][i] = A[k][j][i] * 0.5 - A[k][j-1][i] * 0.5;
+            }
+        }
+    }
+
+    /* Transfer */
+    set_partner_rank(&partner_rank, rank, 'j');         
+    set_sizes_for_transmission(starts, subsizes, 'j', rank);
+    store_subarray_in_1D(A, starts, subsizes, send_buffer);
+
+    MPI_Isend(send_buffer, (N/2) * (N/2), MPI_DOUBLE, partner_rank, 0, MPI_COMM_WORLD, &send_req);
+    MPI_Irecv(recv_buffer, (N/2) * (N/2), MPI_DOUBLE, partner_rank, 0, MPI_COMM_WORLD, &recv_req);
+    MPI_Wait(&recv_req, &recv_status);
+    /* Done Transfer*/
+    for (k = start_k_1; k < end_k_1; k++) {
+        for (i = start_i_1; i < end_i_1; i++) {
+            A[k][start_j_1][i] = A[k][start_j_1][i] * 0.5 - recv_buffer[index_plane(k-start_k_1, i-start_i_1)] * 0.5;
+            for (j = start_j_1+1; j < end_j_1; j++) {
+                A[k][j][i] = A[k][j][i] * 0.5 - A[k][j-1][i] * 0.5;
+            }
+        }
+    }    
+   
 
     // for (j = 0; j < N; j++) {
     //     for (i = 0; i < N; i++) {
@@ -282,7 +345,7 @@ int main(int argc, char **argv)
     //     }
     // }
 #pragma endscop
-    if (rank==3)
+    if (rank==2)
         print_array();
 
     MPI_Finalize();
