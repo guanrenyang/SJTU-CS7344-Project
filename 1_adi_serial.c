@@ -11,8 +11,7 @@ void init_array()
     for (k=0; k<N; k++) {
         for (j=0; j<N; j++) {
             for (i=0; i<N; i++) {
-                // A[k][j][i] = (1+(i*j+k)%1024)/3.0;
-                A[k][j][i] = k*N*N + j*N + i;
+                A[k][j][i] = (1+(i*j+k)%1024)/3.0;
             }
         }
     }
