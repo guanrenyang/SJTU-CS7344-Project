@@ -65,6 +65,17 @@ void store_subarray_in_1D(double A[N][N][N], int starts[3], int subsizes[3], dou
     }
 }
 
+void restore_subarray_from_1D(double A[N][N][N], int starts[3], int subsizes[3], double* subarray_1D) {
+    int idx = 0;
+    for (int i = starts[0]; i < starts[0] + subsizes[0]; i++) {
+        for (int j = starts[1]; j < starts[1] + subsizes[1]; j++) {
+            for (int k = starts[2]; k < starts[2] + subsizes[2]; k++) {
+                A[i][j][k] = subarray_1D[idx++];
+            }
+        }
+    }
+}
+
 // Axis-dependent functions
 void set_index_for_array(int *start_k_0, int *end_k_0, int *start_i_0, int *end_i_0, int *start_j_0, int *end_j_0, int *start_k_1, int *end_k_1, int *start_i_1, int *end_i_1, int *start_j_1, int *end_j_1, int rank, char dependent_axis) {
     if (dependent_axis=='i'){
@@ -294,6 +305,35 @@ void set_sizes_for_transmission(int *starts, int *subsizes, char dependent_axis,
     }
 }
 
+set_sizes_for_final_transmission(int *starts_low_i, int *starts_high_i, int rank){
+    // dependent axis is set to i
+    // k, j, i
+    if (rank==1) {
+        starts_low_i[0] = 0;
+        starts_low_i[1] = 0;
+        starts_low_i[2] = 0;
+
+        starts_high_i[0] = N/2;
+        starts_high_i[1] = N/2;
+        starts_high_i[2] = N/2;
+    } else if (rank==2){
+        starts_low_i[0] = N/2;
+        starts_low_i[1] = N/2;
+        starts_low_i[2] = 0;
+
+        starts_high_i[0] = 0;
+        starts_high_i[1] = 0;
+        starts_high_i[2] = N/2;
+    } else if (rank==3){
+        starts_low_i[0] = N/2;
+        starts_low_i[1] = 0;
+        starts_low_i[2] = 0;
+
+        starts_high_i[0] = 0;
+        starts_high_i[1] = N/2;
+        starts_high_i[2] = N/2;
+    } 
+}
 void compute (int start_k, int end_k, int start_i, int end_i, int start_j, int end_j, double *boundary_buffer, char dependent_axis) {
     int i, j, k;
     if (dependent_axis=='i'){
@@ -379,6 +419,58 @@ int main(int argc, char **argv)
     compute_axis_dependent_loop('i', rank);
     compute_axis_dependent_loop('j', rank);
     compute_axis_dependent_loop('k', rank);
-      
+    
+    if (rank==0) {
+        double *block_low_i[3]= {malloc((N/2) * (N/2) * (N/2) * sizeof(double)), malloc((N/2) * (N/2) * (N/2) * sizeof(double)), malloc((N/2) * (N/2) * (N/2) * sizeof(double))};   
+        double *block_high_i[3] = {malloc((N/2) * (N/2) * (N/2) * sizeof(double)), malloc((N/2) * (N/2) * (N/2) * sizeof(double)), malloc((N/2) * (N/2) * (N/2) * sizeof(double))};
+
+        MPI_Request requests[6];
+        MPI_Status statuses[6];
+        for (int core_id = 1; core_id < 4; core_id++){
+            MPI_Irecv(block_low_i[core_id-1], (N/2) * (N/2) * (N/2), MPI_DOUBLE, core_id, 0, MPI_COMM_WORLD, &requests[(core_id-1)*2]);
+            MPI_Irecv(block_high_i[core_id-1], (N/2) * (N/2) * (N/2), MPI_DOUBLE, core_id, 1, MPI_COMM_WORLD, &requests[(core_id-1)*2+1]);
+        }
+
+        for(int core_id = 1; core_id < 4; core_id++){
+            int starts_low_i[3], starts_high_i[3];
+            int subsize[3] = {N/2, N/2, N/2};
+            set_sizes_for_final_transmission(starts_low_i, starts_high_i, core_id);
+
+            MPI_Wait(&requests[(core_id-1)*2], &statuses[(core_id-1)*2]);
+            restore_subarray_from_1D(A, starts_low_i, subsize, block_low_i[core_id-1]);
+            MPI_Wait(&requests[(core_id-1)*2+1], &statuses[(core_id-1)*2+1]);
+            restore_subarray_from_1D(A, starts_high_i, subsize, block_high_i[core_id-1]);
+        }
+
+        for (int core_id = 0; core_id < 3; core_id++){
+            free(block_low_i[core_id]);
+            free(block_high_i[core_id]);
+        }
+
+        print_array();
+
+    } else {
+        double *block_low_i = malloc((N/2) * (N/2) * (N/2) * sizeof(double));
+        double *block_high_i = malloc((N/2) * (N/2) * (N/2) * sizeof(double));
+        int starts_low_i[3], starts_high_i[3];
+        int subsize[3] = {N/2, N/2, N/2};
+        set_sizes_for_final_transmission(starts_low_i, starts_high_i, rank);
+        // if (rank==2) {
+        //     printf("starts_low_i: %d %d %d\n", starts_low_i[0], starts_low_i[1], starts_low_i[2]);
+        //     printf("starts_high_i: %d %d %d\n", starts_high_i[0], starts_high_i[1], starts_high_i[2]);
+        // }
+        store_subarray_in_1D(A, starts_low_i, subsize, block_low_i);
+        store_subarray_in_1D(A, starts_high_i, subsize, block_high_i);
+
+        MPI_Request send_req_low_i, send_req_high_i;
+        MPI_Isend(block_low_i, (N/2) * (N/2) * (N/2), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &send_req_low_i);
+        MPI_Isend(block_high_i, (N/2) * (N/2) * (N/2), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD, &send_req_high_i);         
+        MPI_Waitall(2, (MPI_Request[]){send_req_low_i, send_req_high_i}, (MPI_Status[]){MPI_STATUS_IGNORE, MPI_STATUS_IGNORE});
+
+        free(block_low_i);
+        free(block_high_i);
+    }
+
+
     MPI_Finalize();
 }
